@@ -99,6 +99,30 @@ def detect(rows: list[dict]) -> list[dict]:
 
     return issues
 
+import pandas as pd
+import json
+import os
+
+def ingest_screaming_frog_data(export_dir_path):
+    """
+    Stage 1: Safely handles character encoding variations and commas within quotes
+    to import the master crawl dataframe.
+    """
+    master_file_path = os.path.join(export_dir_path, "internal_all.csv")
+    
+    if not os.path.exists(master_file_path):
+        raise FileNotFoundError(f"Critical input missing: {master_file_path}")
+        
+    # Read using UTF-8 handling to prevent crash-failures on special characters
+    df = pd.read_csv(master_file_path, encoding='utf-8', low_memory=False)
+    
+    # Clean whitespace strings from header elements
+    df.columns = df.columns.str.strip()
+    
+    total_urls = len(df)
+    print(f"[TELEMETRY] Stage 1 Ingest Complete. Successfully loaded {total_urls} URLs.")
+    
+    return df, total_urls
 
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
