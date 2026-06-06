@@ -190,6 +190,37 @@ def audit_structural_and_server(df):
     }
     return results
 
+def audit_relational_structures(df):
+    """
+    Feature 2.4: Evaluates linkages and multi-hop routing paths.
+    """
+    # 1. Redirect Chains Mapping
+    redirect_lookup = df[df['Redirect URL'].notna()].set_index('Address')['Redirect URL'].to_dict()
+    chains = []
+    
+    for start_url in redirect_lookup.keys():
+        visited = set()
+        current = start_url
+        path = []
+        
+        while current in redirect_lookup and current not in visited:
+            visited.add(current)
+            path.append(current)
+            current = redirect_lookup[current]
+            
+        if len(path) > 1:  # Indicates a multi-hop destination chain
+            chains.append(path[0])
+            
+    # 2. Orphan Pages (0 internal structural incoming references)
+    orphan_pages = df[(df['Status Code'] == 200) & 
+                      (df['Indexability'] == 'Indexable') & 
+                      (df['Inlinks'] == 0)]['Address'].tolist()
+                      
+    return {
+        "redirect_chains": chains,
+        "orphan_pages": orphan_pages
+    }
+
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
     for i in issues:
