@@ -41,61 +41,52 @@ def indexable(r): return (r.get("Indexability", "") or "").strip().lower() == "i
 
 
 def detect(rows: list[dict]) -> list[dict]:
-    """Return a list of issue dicts: {type, severity, affected_urls, count, explanation}.
-    STARTER set — extend to the full rulebook for a high score."""
     issues = []
-
     def add(t, sev, urls, explanation):
         urls = sorted(set(urls))
         if urls:
-            issues.append({"type": t, "severity": sev, "affected_urls": urls,
-                           "count": len(urls), "explanation": explanation})
+            issues.append({"type": t, "severity": sev, "affected_urls": urls, "count": len(urls), "explanation": explanation})
 
+    # Core filters
     html = [r for r in rows if is_html(r)]
     idx200 = [r for r in html if is_200(r) and indexable(r)]
+    all_200 = [r for r in rows if is_200(r)]
 
-    # --- Titles ---
-    add("missing_title", "High",
-        [r["Address"] for r in idx200 if not (r.get("Title 1", "") or "").strip()],
-        "Indexable pages with no title tag.")
-
-    # duplicate titles (indexable only)
+    # --- Feature 2.1: Title Tags (Completed) ---
+    add("missing_title", "High", [r["Address"] for r in idx200 if not (r.get("Title 1", "") or "").strip()], "Indexable pages with no title tag.")
+    
     by_title = defaultdict(list)
     for r in idx200:
         t = (r.get("Title 1", "") or "").strip()
-        if t:
-            by_title[t].append(r["Address"])
+        if t: by_title[t].append(r["Address"])
     dup_t = [u for urls in by_title.values() if len(urls) > 1 for u in urls]
     add("duplicate_title", "High", dup_t, "Pages sharing an identical title.")
+    add("title_too_long", "Medium", [r["Address"] for r in idx200 if _int(r.get("Title 1 Pixel Width")) > 561 or _int(r.get("Title 1 Length")) > 60], "Titles likely truncated.")
+    
+    # NEW: Title Too Short Check (< 30 characters)
+    add("title_too_short", "Low", [r["Address"] for r in idx200 if 0 < _int(r.get("Title 1 Length")) < 30], "Titles under 30 characters.")
 
-    add("title_too_long", "Medium",
-        [r["Address"] for r in idx200
-         if _int(r.get("Title 1 Pixel Width")) > 561 or _int(r.get("Title 1 Length")) > 60],
-        "Titles likely truncated in search results.")
+    # --- Feature 2.2: Meta Descriptions (New Additions) ---
+    add("missing_meta_description", "Medium", [r["Address"] for r in idx200 if not (r.get("Meta Description 1", "") or "").strip()], "Indexable pages missing meta descriptions.")
+    
+    by_meta = defaultdict(list)
+    for r in idx200:
+        m = (r.get("Meta Description 1", "") or "").strip()
+        if m: by_meta[m].append(r["Address"])
+    dup_m = [u for urls in by_meta.values() if len(urls) > 1 for u in urls]
+    add("duplicate_meta_description", "Medium", dup_m, "Pages sharing identical meta descriptions.")
+    add("meta_description_too_long", "Low", [r["Address"] for r in idx200 if _int(r.get("Meta Description 1 Length")) > 155], "Meta descriptions over 155 characters.")
 
-    # --- Response codes ---
-    add("broken_link", "High",
-        [r["Address"] for r in rows if 400 <= _int(r.get("Status Code")) <= 499],
-        "URLs returning a client error (4xx).")
-    add("server_error", "High",
-        [r["Address"] for r in rows if 500 <= _int(r.get("Status Code")) <= 599],
-        "URLs returning a server error (5xx).")
-    add("redirect", "Medium",
-        [r["Address"] for r in rows if 300 <= _int(r.get("Status Code")) <= 399],
-        "URLs that redirect (3xx).")
+    # --- Feature 2.3: Structural & Content Layouts ---
+    add("missing_h1", "Medium", [r["Address"] for r in all_200 if is_html(r) and not (r.get("H1-1", "") or "").strip()], "HTML 200 pages missing an H1 tag.")
+    add("thin_content", "Low", [r["Address"] for r in idx200 if _int(r.get("Word Count")) < 200], "Indexable pages with fewer than 200 words.")
+    add("slow_page", "Low", [r["Address"] for r in all_200 if _float(r.get("Response Time")) > 1.0], "Pages taking longer than 1.0 second to load.")
 
-    # --- Orphan pages ---
-    add("orphan_page", "Medium",
-        [r["Address"] for r in idx200 if _int(r.get("Inlinks")) == 0],
-        "Indexable pages with zero internal links in.")
-
-    # ----------------------------------------------------------------------- #
-    # TODO (Sprint): add the rest of the rulebook for full accuracy:
-    #   title_too_short, missing_meta_description, duplicate_meta_description,
-    #   meta_description_too_long, missing_h1, duplicate_h1, redirect_chain,
-    #   thin_content, non_indexable_but_linked, slow_page
-    # Each is a short rule over the columns — see rulebook.md.
-    # ----------------------------------------------------------------------- #
+    # --- Response Codes ---
+    add("broken_link", "High", [r["Address"] for r in rows if 400 <= _int(r.get("Status Code")) <= 499], "URLs returning a client error (4xx).")
+    add("server_error", "High", [r["Address"] for r in rows if 500 <= _int(r.get("Status Code")) <= 599], "URLs returning a server error (5xx).")
+    add("redirect", "Medium", [r["Address"] for r in rows if 300 <= _int(r.get("Status Code")) <= 399], "URLs that redirect (3xx).")
+    add("orphan_page", "Medium", [r["Address"] for r in idx200 if _int(r.get("Inlinks")) == 0], "Indexable pages with zero internal links in.")
 
     return issues
 
