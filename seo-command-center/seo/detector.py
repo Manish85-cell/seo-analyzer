@@ -1,10 +1,6 @@
 """
 detector.py — deterministic SEO issue detection from a Screaming Frog internal_all.csv.
 
-STARTER IMPLEMENTATION. It already detects several issues so the pipeline runs end to
-end. Your job in the Sprint is to COMPLETE the rulebook (see rulebook.md): add the
-missing detectors, handle edge cases, and improve accuracy against the hidden export.
-
 Standard library only (csv). Detection is plain Python on purpose — the model is for
 judgment (rewriting titles, choosing redirect targets), not for counting rows.
 """
@@ -12,14 +8,13 @@ judgment (rewriting titles, choosing redirect targets), not for counting rows.
 from __future__ import annotations
 import csv
 import os
+import subprocess
 from collections import defaultdict
-
 
 def load_rows(export_dir: str) -> list[dict]:
     path = os.path.join(export_dir, "internal_all.csv")
     with open(path, encoding="utf-8-sig", newline="") as f:
         return list(csv.DictReader(f))
-
 
 def _int(v, default=0):
     try:
@@ -27,32 +22,43 @@ def _int(v, default=0):
     except Exception:
         return default
 
-
 def _float(v, default=0.0):
     try:
         return float(str(v).strip())
     except Exception:
         return default
 
+def is_html(r):
+    return "text/html" in (r.get("Content Type", "") or "").lower()
 
-def is_html(r):  return "text/html" in (r.get("Content Type", "") or "").lower()
-def is_200(r):   return _int(r.get("Status Code")) == 200
-def indexable(r): return (r.get("Indexability", "") or "").strip().lower() == "indexable"
+def is_200(r):
+    return _int(r.get("Status Code")) == 200
 
+def indexable(r):
+    return (r.get("Indexability", "") or "").strip().lower() == "indexable"
 
 def detect(rows: list[dict]) -> list[dict]:
     issues = []
+    
     def add(t, sev, urls, explanation):
         urls = sorted(set(urls))
         if urls:
-            issues.append({"type": t, "severity": sev, "affected_urls": urls, "count": len(urls), "explanation": explanation})
+            issues.append({
+                "type": t, 
+                "severity": sev, 
+                "affected_urls": urls, 
+                "count": len(urls), 
+                "explanation": explanation
+            })
 
-    # Core filters
+    # Core Segment Filters
     html = [r for r in rows if is_html(r)]
     idx200 = [r for r in html if is_200(r) and indexable(r)]
     all_200 = [r for r in rows if is_200(r)]
 
-    # --- Feature 2.1: Title Tags (Completed) ---
+    # ==========================================
+    # --- Feature 2.1: Page Title Tag Audits ---
+    # ==========================================
     add("missing_title", "High", [r["Address"] for r in idx200 if not (r.get("Title 1", "") or "").strip()], "Indexable pages with no title tag.")
     
     by_title = defaultdict(list)
@@ -61,12 +67,13 @@ def detect(rows: list[dict]) -> list[dict]:
         if t: by_title[t].append(r["Address"])
     dup_t = [u for urls in by_title.values() if len(urls) > 1 for u in urls]
     add("duplicate_title", "High", dup_t, "Pages sharing an identical title.")
-    add("title_too_long", "Medium", [r["Address"] for r in idx200 if _int(r.get("Title 1 Pixel Width")) > 561 or _int(r.get("Title 1 Length")) > 60], "Titles likely truncated.")
     
-    # NEW: Title Too Short Check (< 30 characters)
+    add("title_too_long", "Medium", [r["Address"] for r in idx200 if _int(r.get("Title 1 Pixel Width")) > 561 or _int(r.get("Title 1 Length")) > 60], "Titles likely truncated on SERPs.")
     add("title_too_short", "Low", [r["Address"] for r in idx200 if 0 < _int(r.get("Title 1 Length")) < 30], "Titles under 30 characters.")
 
-    # --- Feature 2.2: Meta Descriptions (New Additions) ---
+    # ===============================================
+    # --- Feature 2.2: Meta Description Audits ---
+    # ===============================================
     add("missing_meta_description", "Medium", [r["Address"] for r in idx200 if not (r.get("Meta Description 1", "") or "").strip()], "Indexable pages missing meta descriptions.")
     
     by_meta = defaultdict(list)
@@ -75,119 +82,30 @@ def detect(rows: list[dict]) -> list[dict]:
         if m: by_meta[m].append(r["Address"])
     dup_m = [u for urls in by_meta.values() if len(urls) > 1 for u in urls]
     add("duplicate_meta_description", "Medium", dup_m, "Pages sharing identical meta descriptions.")
+    
     add("meta_description_too_long", "Low", [r["Address"] for r in idx200 if _int(r.get("Meta Description 1 Length")) > 155], "Meta descriptions over 155 characters.")
 
-    # --- Feature 2.3: Structural & Content Layouts ---
+    # ====================================================
+    # --- Feature 2.3: Structural & Content Flaws ---
+    # ====================================================
     add("missing_h1", "Medium", [r["Address"] for r in all_200 if is_html(r) and not (r.get("H1-1", "") or "").strip()], "HTML 200 pages missing an H1 tag.")
     add("thin_content", "Low", [r["Address"] for r in idx200 if _int(r.get("Word Count")) < 200], "Indexable pages with fewer than 200 words.")
     add("slow_page", "Low", [r["Address"] for r in all_200 if _float(r.get("Response Time")) > 1.0], "Pages taking longer than 1.0 second to load.")
 
-    # --- Response Codes ---
+    # ==========================================
+    # --- Feature 2.4: Response Server Codes ---
+    # ==========================================
     add("broken_link", "High", [r["Address"] for r in rows if 400 <= _int(r.get("Status Code")) <= 499], "URLs returning a client error (4xx).")
     add("server_error", "High", [r["Address"] for r in rows if 500 <= _int(r.get("Status Code")) <= 599], "URLs returning a server error (5xx).")
     add("redirect", "Medium", [r["Address"] for r in rows if 300 <= _int(r.get("Status Code")) <= 399], "URLs that redirect (3xx).")
-    add("orphan_page", "Medium", [r["Address"] for r in idx200 if _int(r.get("Inlinks")) == 0], "Indexable pages with zero internal links in.")
+    add("orphan_page", "Medium", [r["Address"] for r in idx200 if _int(r.get("Inlinks")) == 0], "Indexable pages with zero internal incoming structural links.")
 
-    return issues
-
-import pandas as pd
-import json
-import os
-
-def ingest_screaming_frog_data(export_dir_path):
-    """
-    Stage 1: Safely handles character encoding variations and commas within quotes
-    to import the master crawl dataframe.
-    """
-    master_file_path = os.path.join(export_dir_path, "internal_all.csv")
-    
-    if not os.path.exists(master_file_path):
-        raise FileNotFoundError(f"Critical input missing: {master_file_path}")
-        
-    # Read using UTF-8 handling to prevent crash-failures on special characters
-    df = pd.read_csv(master_file_path, encoding='utf-8', low_memory=False)
-    
-    # Clean whitespace strings from header elements
-    df.columns = df.columns.str.strip()
-    
-    total_urls = len(df)
-    print(f"[TELEMETRY] Stage 1 Ingest Complete. Successfully loaded {total_urls} URLs.")
-    
-    return df, total_urls
-
-def audit_page_titles(df):
-    """
-    Feature 2.1: Validates Title lengths, structural omissions, and cross-page duplication.
-    Rulebook constraints: Length (30-60 chars), Width (max 561px).
-    """
-    # Defensive Filter: Only analyze active, indexable HTML documents for Title standards
-    html_mask = (df['Content Type'].str.contains('text/html', na=False)) & \
-                (df['Indexability'] == 'Indexable') & \
-                (df['Status Code'] == 200)
-    
-    target_df = df[html_mask]
-    
-    # 1. Missing Titles
-    missing_titles = target_df[target_df['Title 1'].isna() | (target_df['Title 1'].str.strip() == '')]
-    
-    # 2. Duplicate Titles
-    duplicate_titles = target_df[target_df.duplicated(subset=['Title 1'], keep=False) & target_df['Title 1'].notna()]
-    
-    # 3. Title Over Max Length Thresholds (> 60 Chars OR > 561 Pixels)
-    too_long_titles = target_df[
-        (target_df['Title 1 Length'] > 60) | 
-        (target_df['Title 1 Pixel Width'] > 561)
-    ]
-    
-    # 4. Title Under Min Length (< 30 Chars)
-    too_short_titles = target_df[target_df['Title 1 Length'] < 30]
-    
-    return {
-        "missing": missing_titles['Address'].tolist(),
-        "duplicate": duplicate_titles['Address'].tolist(),
-        "too_long": too_long_titles['Address'].tolist(),
-        "too_short": too_short_titles['Address'].tolist()
-    }
-
-def audit_meta_descriptions(df):
-    """
-    Feature 2.2: Evaluates Meta Description structural metrics on indexable HTML assets.
-    """
-    html_mask = (df['Content Type'].str.contains('text/html', na=False)) & \
-                (df['Indexability'] == 'Indexable') & \
-                (df['Status Code'] == 200)
-    
-    target_df = df[html_mask]
-    
-    missing_metas = target_df[target_df['Meta Description 1'].isna() | (target_df['Meta Description 1'].str.strip() == '')]
-    duplicate_metas = target_df[target_df.duplicated(subset=['Meta Description 1'], keep=False) & target_df['Meta Description 1'].notna()]
-    too_long_metas = target_df[target_df['Meta Description 1Length'] > 155]
-    
-    return {
-        "missing": missing_metas['Address'].tolist(),
-        "duplicate": duplicate_metas['Address'].tolist(),
-        "too_long": too_long_metas['Address'].tolist()
-    }
-
-def audit_structural_and_server(df):
-    """
-    Feature 2.3: Tracks core HTTP statuses and basic header elements across all crawled entries.
-    """
-    results = {
-        "missing_h1": df[(df['Status Code'] == 200) & (df['H1-1'].isna() | (df['H1-1'].str.strip() == ''))]['Address'].tolist(),
-        "broken_links_4xx": df[(df['Status Code'] >= 400) & (df['Status Code'] < 500)]['Address'].tolist(),
-        "server_errors_5xx": df[(df['Status Code'] >= 500) & (df['Status Code'] < 600)]['Address'].tolist(),
-        "redirects_3xx": df[(df['Status Code'] >= 300) & (df['Status Code'] < 400)]['Address'].tolist()
-    }
-    return results
-
-def audit_relational_structures(df):
-    """
-    Feature 2.4: Evaluates linkages and multi-hop routing paths.
-    """
+    # ==============================================
+    # --- Feature 2.5: Advanced Relational Logic ---
+    # ==============================================
     # 1. Redirect Chains Mapping
-    redirect_lookup = df[df['Redirect URL'].notna()].set_index('Address')['Redirect URL'].to_dict()
-    chains = []
+    redirect_lookup = {r["Address"]: r.get("Redirect URL", "").strip() for r in rows if 300 <= _int(r.get("Status Code")) <= 399 and r.get("Redirect URL")}
+    chain_starts = []
     
     for start_url in redirect_lookup.keys():
         visited = set()
@@ -199,44 +117,51 @@ def audit_relational_structures(df):
             path.append(current)
             current = redirect_lookup[current]
             
-        if len(path) > 1:  # Indicates a multi-hop destination chain
-            chains.append(path[0])
+        if len(path) > 1:
+            chain_starts.append(start_url)
             
-    # 2. Orphan Pages (0 internal structural incoming references)
-    orphan_pages = df[(df['Status Code'] == 200) & 
-                      (df['Indexability'] == 'Indexable') & 
-                      (df['Inlinks'] == 0)]['Address'].tolist()
-                      
-    return {
-        "redirect_chains": chains,
-        "orphan_pages": orphan_pages
-    }
+    add("redirect_chain", "High", chain_starts, "URLs that map to a redirecting destination forming a multi-hop chain.")
 
-import subprocess
+    # 2. Non-Indexable But Linked Pages
+    non_indexable_linked = [
+        r["Address"] for r in rows 
+        if (r.get("Indexability", "").strip().lower() == "non-indexable") and _int(r.get("Inlinks")) > 0
+    ]
+    add("non_indexable_but_linked", "Medium", non_indexable_linked, "Pages marked non-indexable that still receive internal incoming links.")
 
+    return issues
+
+# =======================================================
+# --- Feature 3.1: AI Fixer Engine (Local Inference) ---
+# =======================================================
 def call_local_llm_fixer(prompt_text):
     """
-    Helper to execute localized inference safely without external network calls.
+    Executes isolated local inference via Ollama without external network calls.
     """
-    # Force output structure control rules via system execution arguments
     cmd = ["ollama", "run", "qwen3.5:9b", prompt_text]
     response = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
     return response.stdout.strip()
 
 def generating_validated_metadata_fix(url, current_bad_title, context_hint=""):
     """
-    Feature 3.1: Generates an alternative title tag and executes an automated
-    validation loop to guarantee compliance with the 60-character ceiling.
+    Generates alternative titles via local LLM and evaluates them against character limits
+    using an automated validation loop.
     """
-    base_prompt = f"Optimize this webpage title tag to be compelling and descriptive. Brand: Example. Target URL: {url}. Current Title: '{current_bad_title}'. Context: {context_hint}. Output ONLY the raw new title string. Do not wrap in quotes or explanations."
+    base_prompt = (
+        f"Optimize this webpage title tag to be compelling and descriptive. Brand: Example. "
+        f"Target URL: {url}. Current Title: '{current_bad_title}'. Context: {context_hint}. "
+        f"Output ONLY the raw new title string. Do not wrap in quotes or explanations."
+    )
     
-    # Execute the primary correction call
     suggested_title = call_local_llm_fixer(base_prompt)
     
-    # The Validation Loop Guardrail
+    # Defensive Validation Loop Guardrail
     attempts = 0
     while (len(suggested_title) > 60 or len(suggested_title) < 30) and attempts < 3:
-        fallback_prompt = f"Your previous title recommendation was invalid because it violated length constraints ({len(suggested_title)} chars). Rewrite the following title to be strictly between 30 and 60 characters long: '{suggested_title}'"
+        fallback_prompt = (
+            f"Your previous title recommendation was invalid because it violated length constraints ({len(suggested_title)} chars). "
+            f"Rewrite the following title to be strictly between 30 and 60 characters long: '{suggested_title}'"
+        )
         suggested_title = call_local_llm_fixer(fallback_prompt)
         attempts += 1
         
@@ -244,11 +169,18 @@ def generating_validated_metadata_fix(url, current_bad_title, context_hint=""):
 
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
+    total_instances = 0
     for i in issues:
-        by_sev[i["severity"]] += 1
-    return {"total_issues": len(issues),
-            "by_severity": {"High": by_sev["High"], "Medium": by_sev["Medium"], "Low": by_sev["Low"]}}
-
+        by_sev[i["severity"]] += i["count"]  # Count individual affected URLs
+        total_instances += i["count"]
+    return {
+        "total_issues": total_instances, 
+        "by_severity": {
+            "High": by_sev["High"], 
+            "Medium": by_sev["Medium"], 
+            "Low": by_sev["Low"]
+        }
+    }
 
 if __name__ == "__main__":
     import sys, json
