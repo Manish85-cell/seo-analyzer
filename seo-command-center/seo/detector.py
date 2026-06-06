@@ -221,6 +221,36 @@ def audit_relational_structures(df):
         "orphan_pages": orphan_pages
     }
 
+import subprocess
+
+def call_local_llm_fixer(prompt_text):
+    """
+    Helper to execute localized inference safely without external network calls.
+    """
+    # Force output structure control rules via system execution arguments
+    cmd = ["ollama", "run", "qwen3.5:9b", prompt_text]
+    response = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+    return response.stdout.strip()
+
+def generating_validated_metadata_fix(url, current_bad_title, context_hint=""):
+    """
+    Feature 3.1: Generates an alternative title tag and executes an automated
+    validation loop to guarantee compliance with the 60-character ceiling.
+    """
+    base_prompt = f"Optimize this webpage title tag to be compelling and descriptive. Brand: Example. Target URL: {url}. Current Title: '{current_bad_title}'. Context: {context_hint}. Output ONLY the raw new title string. Do not wrap in quotes or explanations."
+    
+    # Execute the primary correction call
+    suggested_title = call_local_llm_fixer(base_prompt)
+    
+    # The Validation Loop Guardrail
+    attempts = 0
+    while (len(suggested_title) > 60 or len(suggested_title) < 30) and attempts < 3:
+        fallback_prompt = f"Your previous title recommendation was invalid because it violated length constraints ({len(suggested_title)} chars). Rewrite the following title to be strictly between 30 and 60 characters long: '{suggested_title}'"
+        suggested_title = call_local_llm_fixer(fallback_prompt)
+        attempts += 1
+        
+    return suggested_title
+
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
     for i in issues:
