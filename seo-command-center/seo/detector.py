@@ -178,6 +178,18 @@ def audit_meta_descriptions(df):
         "too_long": too_long_metas['Address'].tolist()
     }
 
+def audit_structural_and_server(df):
+    """
+    Feature 2.3: Tracks core HTTP statuses and basic header elements across all crawled entries.
+    """
+    results = {
+        "missing_h1": df[(df['Status Code'] == 200) & (df['H1-1'].isna() | (df['H1-1'].str.strip() == ''))]['Address'].tolist(),
+        "broken_links_4xx": df[(df['Status Code'] >= 400) & (df['Status Code'] < 500)]['Address'].tolist(),
+        "server_errors_5xx": df[(df['Status Code'] >= 500) & (df['Status Code'] < 600)]['Address'].tolist(),
+        "redirects_3xx": df[(df['Status Code'] >= 300) & (df['Status Code'] < 400)]['Address'].tolist()
+    }
+    return results
+
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
     for i in issues:
