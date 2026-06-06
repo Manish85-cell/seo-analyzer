@@ -7,8 +7,9 @@ logic and push accuracy on the hidden export.
 
 ## Quick start (headless, proves it runs)
 ```bash
-pip install mcp          # exposes MCP tools to Claude Code (dashboard works without it too)
-python run.py sample-export/
+pip3 install mcp          # exposes MCP tools to Claude Code (dashboard works without it too)
+
+python3 seo-command-center/run.py sample-export/
 # open the live cockpit:
 #   http://localhost:7700
 # outputs land in outputs/report.json and outputs/report.html

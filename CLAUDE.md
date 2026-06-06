@@ -30,37 +30,8 @@ dashboard at localhost:7700, and outputs `outputs/report.json` + `outputs/report
 - Run `python run.py sample-export/` to test end to end.
 
 ## Things I have learned during the build (update this as you go)
-- (e.g. "SF leaves Title 1 blank on redirected URLs — must filter Status Code 200 first")
-- ...
 
-## 1. State Initialization Sequence
-
-I learned that the global dashboard state dictionary (`server.RUN`) must be explicitly guarded with nested dictionaries (`fixes`, `titles`, `redirect_map`) before triggering loop appends. This prevents unexpected runtime `KeyError` crashes caused by missing keys.
-
-**Key Takeaway:**
-- I should initialize all required nested structures before use.
-- I should not assume dictionary keys already exist.
-- Proper initialization reduces runtime failures during pipeline execution.
-
----
-
-## 2. Orchestration Execution Order
-
-I learned that all AI-driven text optimization loops and redirect mapping routines must execute and populate the shared state data model before calling:
-
-- `server.seo_report()`
-- `server.seo_export()`
-
-Failing to do so can result in empty DataFrames being written to disk, producing incomplete or invalid reports.
-
-**Key Takeaway:**
-- Data generation must occur before reporting or exporting.
-- I should ensure state population is complete before downstream processing.
-- Validating shared state contents before file generation helps prevent errors.
-
----
-
-## 3. LLM Token Response Scrubbing
+## 1. LLM Token Response Scrubbing
 
 I learned that high-speed cloud reasoning models may emit:
 
@@ -73,6 +44,32 @@ A robust regex-based cleaning layer is required to remove this noise before savi
 - I should always sanitize LLM responses before persistence.
 - Terminal escape sequences and reasoning artifacts should be removed.
 - Cleaned output should be validated against the target JSON schema.
+
+
+## 2. State Initialization Sequence
+
+I learned that the global dashboard state dictionary (`server.RUN`) must be explicitly guarded with nested dictionaries (`fixes`, `titles`, `redirect_map`) before triggering loop appends. This prevents unexpected runtime `KeyError` crashes caused by missing keys.
+
+**Key Takeaway:**
+- I should initialize all required nested structures before use.
+- I should not assume dictionary keys already exist.
+- Proper initialization reduces runtime failures during pipeline execution.
+
+---
+
+## 3. Orchestration Execution Order
+
+I learned that all AI-driven text optimization loops and redirect mapping routines must execute and populate the shared state data model before calling:
+
+- `server.seo_report()`
+- `server.seo_export()`
+
+Failing to do so can result in empty DataFrames being written to disk, producing incomplete or invalid reports.
+
+**Key Takeaway:**
+- Data generation must occur before reporting or exporting.
+- I should ensure state population is complete before downstream processing.
+- Validating shared state contents before file generation helps prevent errors.
 
 ---
 

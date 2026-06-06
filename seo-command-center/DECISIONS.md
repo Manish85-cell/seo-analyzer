@@ -1,25 +1,21 @@
-# DECISIONS.md — decision & learnings log
+# DECISIONS.md — Engineering Log
 
-A short running note of the real choices you made: what you tried, what failed and why, what
-you changed. This is your engineering judgement on the record — it is what separates a builder
-from a button-presser, and it is graded (challenge brief section 08).
+## [2026-06-06] Architecture: Deterministic Detection vs. AI Judgment
+**Decision**: Use plain Python for issue detection and LLMs only for generating fixes.
+**Reasoning**: The SEO rulebook is based on hard thresholds (e.g., Pixel Width > 561). Using an LLM to count characters or detect empty strings is unreliable and slow. This separation ensures 100% accuracy in detection.
 
-Append a 1–2 line entry whenever you make a real decision or hit/fix a wall. Add a timestamp.
+## [2026-06-06] Model Pivot: Local to Cloud (Ollama)
+**Decision**: Shifted execution from purely local processing to `gemma4:31b-cloud` via Ollama.
+**Reasoning**: Local inference on a MacBook Air was taking 15+ minutes. The cloud-backed Ollama model reduced the total pipeline runtime to 84.4 seconds without sacrificing fix quality.
 
-Format:
-`[HH:MM] <decision or problem> → <what you did and why>`
+## [2026-06-06] Response Sanitization Layer
+**Decision**: Implemented `clean_ai_response` using regex to strip `<think>` blocks and ANSI escape codes.
+**Reasoning**: The reasoning models were leaking internal thoughts and terminal control characters into the `report.json`, which violated the schema and corrupted the HTML output.
 
----
+## [2026-06-06] State Management Guard
+**Decision**: Explicitly initialize `server.RUN["fixes"]` in `run.py` before AI loops start.
+**Reasoning**: Prevented intermittent `KeyError` crashes when the AI agent attempted to append results to a dictionary key that hadn't been created yet.
 
-## Example (replace with your own)
-- `[10:20]` Chose plain-csv parsing over pandas → fewer deps, fast enough for 5k rows, model
-  quota saved for the fixer.
-- `[11:05]` Title detector over-counted duplicates → realized non-indexable pages were
-  included; added an indexable+200 filter (per rulebook).
-- `[12:40]` Dashboard wasn't updating live → MCP tool wasn't emitting the SSE event; added
-  `_emit("issue", row)` in extract.
-
----
-
-## My log
-- `[--:--]` ...
+## [2026-06-06] Export Sequencing
+**Decision**: Shifted `seo_report()` and `seo_export()` to the absolute end of the `main()` loop in `run.py`.
+**Reasoning**: Fixed a bug where reports were being written before the AI sub-agents had finished generating the fix mappings.

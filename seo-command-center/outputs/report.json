@@ -461,39 +461,34 @@
   "fixes": {
     "titles": [
       {
-        "url": "https://nmgtechnologies.com/blog/nmg-technologies-to-sponsor-and-exhibit-at-brighton-seo-2023-and-online-pr-show-2023",
+        "url": "https://nmgtechnologies.com/success-stories/wealth-concert",
         "old": "",
-        "new": "NMG Technologies at Brighton SEO & Online PR Show 2023"
+        "new": "Wealth Concert Case Study | NMG Technologies"
       },
       {
-        "url": "https://nmgtechnologies.com/company/outsourcing/",
+        "url": "https://nmgtechnologies.com/ai-driven-enterprise-software-development",
         "old": "",
-        "new": "IT Outsourcing & Dedicated Teams | NMG Technologies"
+        "new": "Enterprise AI Software Development | NMG Technologies"
       },
       {
-        "url": "https://nmgtechnologies.com/services/custom-software-development/",
+        "url": "https://nmgtechnologies.com/ai-powered-business-process-transformation",
         "old": "",
-        "new": "Custom Software Development Services | NMG Technologies"
+        "new": "AI Business Process Transformation | NMG Technologies"
       },
       {
-        "url": "https://nmgtechnologies.com/services/mobile-application-development",
+        "url": "https://nmgtechnologies.com/resources/library/hire-web-developers-guide",
         "old": "",
-        "new": "Custom Mobile App Development | NMG Technologies"
+        "new": "How to Hire Web Developers: A Comprehensive Guide"
       },
       {
-        "url": "https://nmgtechnologies.com/solution/cloud-apps/",
+        "url": "https://nmgtechnologies.com/ai-optimized-ecommerce-solutions",
         "old": "",
-        "new": "Cloud Application Solutions & Development | NMG Technologies"
+        "new": "AI-Optimized Ecommerce Solutions | NMG Technologies"
       }
     ],
     "redirect_map": [
       {
         "from": "https://nmgtechnologies.com/hs-fs/hubfs/B-W_icon.png.png?width=101&height=100&name=B-W_icon.png.png",
-        "to": "https://nmgtechnologies.com/",
-        "reason": "404 to closest live page match via local AI sub-agent"
-      },
-      {
-        "from": "https://nmgtechnologies.com/hs-fs/hubfs/fintechgrey.png?width=122&height=80&name=fintechgrey.png",
         "to": "https://nmgtechnologies.com/",
         "reason": "404 to closest live page match via local AI sub-agent"
       },
@@ -508,12 +503,17 @@
         "reason": "404 to closest live page match via local AI sub-agent"
       },
       {
-        "from": "https://nmgtechnologies.com/hs-fs/hubfs/healthgrey.png?width=105&height=90&name=healthgrey.png",
+        "from": "https://nmgtechnologies.com/hs-fs/hubfs/edtech.png.png?width=101&height=100&name=edtech.png.png",
         "to": "https://nmgtechnologies.com/",
         "reason": "404 to closest live page match via local AI sub-agent"
       },
       {
-        "from": "https://nmgtechnologies.com/hs-fs/hubfs/edtech.png.png?width=101&height=100&name=edtech.png.png",
+        "from": "https://nmgtechnologies.com/hs-fs/hubfs/fintechgrey.png?width=122&height=80&name=fintechgrey.png",
+        "to": "https://nmgtechnologies.com/",
+        "reason": "404 to closest live page match via local AI sub-agent"
+      },
+      {
+        "from": "https://nmgtechnologies.com/hs-fs/hubfs/healthgrey.png?width=105&height=90&name=healthgrey.png",
         "to": "https://nmgtechnologies.com/",
         "reason": "404 to closest live page match via local AI sub-agent"
       }
@@ -529,6 +529,6 @@
   "run_meta": {
     "model": "qwen3.5:9b",
     "model_calls": 11,
-    "duration_sec": 51.4
+    "duration_sec": 289.7
   }
 }
