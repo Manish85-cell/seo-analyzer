@@ -11,7 +11,7 @@ Needs the MCP SDK to expose tools to Claude (`pip install mcp`); without it the 
 still runs so you can use run.py. Standard library otherwise.
 """
 from __future__ import annotations
-import json, os, queue, threading, time
+import json, os, queue, threading, time, csv
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -99,9 +99,32 @@ def seo_report() -> dict:
 
 def seo_export() -> dict:
     os.makedirs(OUT_DIR, exist_ok=True)
-    p = os.path.join(OUT_DIR, "report.html")
-    open(p, "w", encoding="utf-8").write(_render_html(_report_obj()))
-    _emit("exported", {"path": p}); return {"path": p}
+
+    # 1. Write HTML Report
+    p_html = os.path.join(OUT_DIR, "report.html")
+    open(p_html, "w", encoding="utf-8").write(_render_html(_report_obj()))
+
+    # 2. Write Titles/Metas CSV (Champion Tier)
+    p_titles = os.path.join(OUT_DIR, "titles_metas.csv")
+    fixes = RUN.get("fixes", {})
+    titles = fixes.get("titles", [])
+    if titles:
+        with open(p_titles, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["url", "old", "new"])
+            writer.writeheader()
+            writer.writerows(titles)
+
+    # 3. Write Redirect Map CSV (Champion Tier)
+    p_redirects = os.path.join(OUT_DIR, "redirect_map.csv")
+    redirects = fixes.get("redirect_map", [])
+    if redirects:
+        with open(p_redirects, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["from", "to", "reason"])
+            writer.writeheader()
+            writer.writerows(redirects)
+
+    _emit("exported", {"path": p_html})
+    return {"path": p_html}
 
 
 def _render_html(o) -> str:
