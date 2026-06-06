@@ -124,6 +124,40 @@ def ingest_screaming_frog_data(export_dir_path):
     
     return df, total_urls
 
+def audit_page_titles(df):
+    """
+    Feature 2.1: Validates Title lengths, structural omissions, and cross-page duplication.
+    Rulebook constraints: Length (30-60 chars), Width (max 561px).
+    """
+    # Defensive Filter: Only analyze active, indexable HTML documents for Title standards
+    html_mask = (df['Content Type'].str.contains('text/html', na=False)) & \
+                (df['Indexability'] == 'Indexable') & \
+                (df['Status Code'] == 200)
+    
+    target_df = df[html_mask]
+    
+    # 1. Missing Titles
+    missing_titles = target_df[target_df['Title 1'].isna() | (target_df['Title 1'].str.strip() == '')]
+    
+    # 2. Duplicate Titles
+    duplicate_titles = target_df[target_df.duplicated(subset=['Title 1'], keep=False) & target_df['Title 1'].notna()]
+    
+    # 3. Title Over Max Length Thresholds (> 60 Chars OR > 561 Pixels)
+    too_long_titles = target_df[
+        (target_df['Title 1 Length'] > 60) | 
+        (target_df['Title 1 Pixel Width'] > 561)
+    ]
+    
+    # 4. Title Under Min Length (< 30 Chars)
+    too_short_titles = target_df[target_df['Title 1 Length'] < 30]
+    
+    return {
+        "missing": missing_titles['Address'].tolist(),
+        "duplicate": duplicate_titles['Address'].tolist(),
+        "too_long": too_long_titles['Address'].tolist(),
+        "too_short": too_short_titles['Address'].tolist()
+    }
+
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
     for i in issues:
