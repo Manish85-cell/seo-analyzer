@@ -158,6 +158,26 @@ def audit_page_titles(df):
         "too_short": too_short_titles['Address'].tolist()
     }
 
+def audit_meta_descriptions(df):
+    """
+    Feature 2.2: Evaluates Meta Description structural metrics on indexable HTML assets.
+    """
+    html_mask = (df['Content Type'].str.contains('text/html', na=False)) & \
+                (df['Indexability'] == 'Indexable') & \
+                (df['Status Code'] == 200)
+    
+    target_df = df[html_mask]
+    
+    missing_metas = target_df[target_df['Meta Description 1'].isna() | (target_df['Meta Description 1'].str.strip() == '')]
+    duplicate_metas = target_df[target_df.duplicated(subset=['Meta Description 1'], keep=False) & target_df['Meta Description 1'].notna()]
+    too_long_metas = target_df[target_df['Meta Description 1Length'] > 155]
+    
+    return {
+        "missing": missing_metas['Address'].tolist(),
+        "duplicate": duplicate_metas['Address'].tolist(),
+        "too_long": too_long_metas['Address'].tolist()
+    }
+
 def summarize(issues: list[dict]) -> dict:
     by_sev = defaultdict(int)
     for i in issues:
