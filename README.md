@@ -22,9 +22,9 @@ python3 seo-command-center/run.py sample-export/
 
 ## What's here
 ```
+├── .claude/                     audit hooks (settings.json + hooks/audit.sh) → records your process
 seo-command-center/
 ├── .claude-plugin/plugin.json   plugin manifest (skill + command + agents + MCP)
-├── .claude/                     audit hooks (settings.json + hooks/audit.sh) → records your process
 ├── skills/seo-audit/SKILL.md    orchestrator
 ├── agents/                      ingest, auditor, fixer, reporter (sub-agents)
 ├── commands/seo-audit.md        the /seo-audit command
